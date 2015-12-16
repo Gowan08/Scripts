@@ -1,11 +1,11 @@
 ﻿#Add-PSSnapin VMware*
-#Connect-VIServer -Server VDCvcenter
+#Connect-VIServer -Server goldvc1p
 param
 (
 	[alias("d")]
-	$directory =  "C:\utils\Migration\VDC",
+	$directory =  "E:\tmp\GOLD\",
 	[alias("dc")]
-	$datacenter = "VDC"
+	$datacenter = "GOLD"
 )
 
 function Set-DatastoreClusterDefaultIntraVmAffinity{ 
@@ -48,44 +48,45 @@ $findClusterParent = $Cluster.ExtensionData.Parent.value
     foreach($folder in $folders){
     $DatastoreClusterLocation = @()
         IF($folder.Id -match $findClusterParent){
+            $DatastoreClusterLocation += $Cluster.Name
             DO {
-                $DatastoreClusterLocation += $Cluster.Name
                 $DatastoreClusterLocation += $folder.Name
+                IF($folder.Name -ne $rootStorageFolder){
                 $folder = $folder.Parent.Name
                 }
-            Until($folder -eq "datastore")
-            $DatastoreClusterLocation += $rootStorageFolder.Name
+                }
+            Until($folder.name -eq "datastore")
             $DatastoreCLusterLocation -join "," >>$directory\StorageClusterLocations.csv          
         }
     }
 $Cluster | select Name,IOLatencyThresholdMillisecond,IOLoadBalanceEnabled,SdrsAutomationLevel,SpaceUtilizationThresholdPercent | Export-Csv -Path $directory\StorageClusterSettings.csv -Append -NoTypeInformation
-$datastoreLocations = @()
-$datastores = $Cluster | Get-Datastore
-$datastoreLocations += $Cluster.Name
-$datastoreLocations += $datastores.Name
-$datastoreLocations -join "," >>$directory\ClusterDatastoreLocations.csv
+$ClusterDatastoreLocations = @()
+$Clusterdatastores = $Cluster | Get-Datastore
+$ClusterDatastoreLocations += $Cluster.Name
+$ClusterDatastoreLocations += $datastores.Name
+$ClusterDatastoreLocations -join "," >>$directory\ClusterDatastoreLocations.csv
 Get-DatastoreCluster | Select Name, @{N="DefaultIntraVmAffinity";E={($_ | Get-View).PodStorageDRSEntry.StorageDRSConfig.PodConfig.DefaultIntraVmAffinity}} | Export-CSV -Path $directory\StorageClusterVMAffinity.csv -Append -NoTypeInformation
 }
-#XML Out of all Datastores not associated with Datastore Cluster
-$dc | get-datastore | select name,ParentFolder | export-clixml $directory\datastore-locations.xml
 
-<#the hard way of getting all datastore locations..
+#the hard way of getting all datastore locations..
 
 foreach($Datastore in $Datastores){
-
 $findDatastoreParent = $Datastore.ExtensionData.Parent.value
     foreach($folder in $folders){
     $DatastoreLocation = @()
-        IF($folder.ExtentionData.MoRef.Value -match $findDatastoreParent){
-            write-host $folder, $datastore
+        IF($folder.Id -match $findDatastoreParent){
+            $DatastoreLocation += $Datastore.Name
             DO {
-                $DatastoreLocation += $Datastore.Name
                 $DatastoreLocation += $folder.Name
-                $folder = $folder.Parent.Name
+                IF($folder.Name -ne $rootStorageFolder){
+                $folder = $folder.Parent
                 }
-            Until($folder -eq "datastore")
-            $DatastoreLocation += $rootStorageFolder.Name
-            $DatastoreLocation -join "," >>$directory\StorageLocations.csv          
+                IF($folder.Name -eq $rootStorageFolder){
+                $DatastoreLocation += $rootStorageFolder
+                }
+                }
+            Until($folder.Name -eq "datastore")
+            $DatastoreLocation -join "," >>$directory\DatastoreLocations.csv          
         }
     }
-}#>
+}
